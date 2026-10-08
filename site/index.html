@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Scoring trends since 2019 and searchable player and team stats for the NFL, NBA, MLB, NHL and MLS, refreshed daily.">
+<title>Big Five Scoring Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: stat-sheet app — sticky view tabs, then one view at a time: Overview (league trends), Players (search + sortable table), Teams (standings + team detail), Ask (AI analyst). */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#15202b; --muted:#5b6876; --line:#d5dbe2; --soft:#f5f7f9; --accent:#1f5fa8;
+  --nfl:#2f6fb0; --nba:#d0612a; --mlb:#2f8a52; --nhl:#7656c2; --mls:#c2386a;
+  --good:#1f7a45; --good-bg:#e1f2e7; --warn:#9a5b00; --warn-bg:#fbefd9; --flat:#4b5866; --flat-bg:#e7ebef;
+  --display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f151c; --panel:#18212b; --ink:#e6ebf0; --muted:#97a4b2; --line:#2b3744; --soft:#141c25; --accent:#7fb2ec;
+  --nfl:#6fa6e3; --nba:#f08a50; --mlb:#5fc184; --nhl:#a98cf0; --mls:#ee6f9b;
+  --good:#7fd6a0; --good-bg:#183a27; --warn:#f3c06b; --warn-bg:#3b2d14; --flat:#b4c0cc; --flat-bg:#26313d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151c; --panel:#18212b; --ink:#e6ebf0; --muted:#97a4b2; --line:#2b3744; --soft:#141c25; --accent:#7fb2ec;
+  --nfl:#6fa6e3; --nba:#f08a50; --mlb:#5fc184; --nhl:#a98cf0; --mls:#ee6f9b;
+  --good:#7fd6a0; --good-bg:#183a27; --warn:#f3c06b; --warn-bg:#3b2d14; --flat:#b4c0cc; --flat-bg:#26313d; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+img{max-width:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body)}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:20px 56px;display:grid;gap:20px}
+h1,h2,h3{font-family:var(--display);font-weight:800;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(34px,7vw,52px);text-transform:uppercase}
+h2{font-size:24px;text-transform:uppercase}
+h3{font-size:19px;text-transform:uppercase;letter-spacing:.03em}
+p{margin:0}
+.eyebrow{font:500 12px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{color:var(--muted);max-width:64ch}
+header{display:grid;gap:10px;padding-top:6px}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.tab{font:700 14px/1 var(--body);padding:10px 14px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--panel)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;min-width:0}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+.note{font-size:13px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:6px;border-top:4px solid var(--c);min-width:0}
+.tile .lg{font:800 20px/1 var(--display);letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tile .val{font:700 34px/1 var(--display);font-variant-numeric:tabular-nums}
+.tile .unit{font-size:12px;color:var(--muted)}
+.tile .cmp{font:400 12.5px/1.4 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.pill{font:600 11px/1 var(--body);padding:5px 8px;border-radius:99px;white-space:nowrap;letter-spacing:.02em}
+.pill.up{color:var(--good);background:var(--good-bg)} .pill.down{color:var(--warn);background:var(--warn-bg)} .pill.flat{color:var(--flat);background:var(--flat-bg)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:600 13px/1 var(--body);padding:8px 12px;border-radius:99px;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.chip i{width:10px;height:10px;border-radius:50%;background:var(--c);display:block}
+.chip[aria-pressed="false"]{opacity:.45}
+.chip:disabled{cursor:default;opacity:.35}
+.chip .soon{font:500 10px/1 var(--mono);color:var(--muted)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:inline-flex;border:1.5px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:600 13px/1 var(--body);padding:8px 12px;background:transparent;color:var(--muted);border:0;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:var(--mono);fill:var(--muted)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;max-width:100%}
+table{border-collapse:collapse;width:100%;font:13px/1.3 var(--mono);font-variant-numeric:tabular-nums}
+th,td{padding:8px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);z-index:1}
+thead th{font:600 11px/1 var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--soft);position:sticky;top:0}
+thead th:first-child{background:var(--soft);z-index:2}
+thead th button{all:unset;cursor:pointer}
+thead th[aria-sort="descending"] button::after{content:" ▼"} thead th[aria-sort="ascending"] button::after{content:" ▲"}
+thead th[aria-sort] {color:var(--ink)}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--soft)}
+td .pname{font:600 13.5px/1.2 var(--body);color:var(--ink)}
+td .psub{font:400 11.5px/1.2 var(--mono);color:var(--muted);display:block;margin-top:2px}
+td.hl{color:var(--ink);font-weight:500}
+td.prov{color:var(--muted);font-style:italic}
+td .sw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:7px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}
+.insights{display:grid;gap:12px;margin:0;padding:0;list-style:none}
+.insights li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+.insights b.tag{font:800 13px/1 var(--display);letter-spacing:.06em;color:var(--c);padding-top:3px;min-width:34px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.field{display:grid;gap:5px;min-width:0}
+.field label{font:600 11px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+input[type=search],select,textarea{font:15px/1.3 var(--body);color:var(--ink);background:var(--soft);border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0;box-sizing:border-box}
+input[type=search]{width:min(100%,320px)}
+.btn{font:700 14px/1 var(--body);padding:11px 16px;border-radius:8px;border:0;background:var(--accent);color:var(--panel);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.count{font:500 12px/1 var(--mono);color:var(--muted)}
+.empty{padding:22px;text-align:center;color:var(--muted);font-size:14px}
+.detail{border-left:4px solid var(--c);}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+.kv div{background:var(--soft);border-radius:8px;padding:10px;display:grid;gap:3px;min-width:0}
+.kv b{font:700 22px/1 var(--display);font-variant-numeric:tabular-nums}
+.kv span{font:500 11px/1.2 var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kv em{font:500 11px/1.2 var(--mono);font-style:normal;color:var(--accent)}
+.bars{display:grid;gap:7px}
+.bar{display:grid;grid-template-columns:minmax(90px,150px) 1fr auto;gap:10px;align-items:center;font-size:13px}
+.bar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .tr{height:12px;background:var(--soft);border-radius:6px;overflow:hidden}
+.bar .tr i{display:block;height:100%;background:var(--c);border-radius:6px}
+.bar .v{font:500 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.team-card{all:unset;box-sizing:border-box;cursor:pointer;background:var(--soft);border:1.5px solid transparent;border-radius:8px;padding:10px 12px;display:grid;gap:3px}
+.team-card:hover,.team-card[aria-pressed="true"]{border-color:var(--c)}
+.team-card:focus-visible{outline:2px solid var(--accent)}
+.team-card b{font:700 14px/1.2 var(--body)}
+.team-card span{font:400 12px/1.2 var(--mono);color:var(--muted)}
+.ask textarea{width:100%;min-height:72px;resize:vertical}
+.ask .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sugg{font:500 13px/1.3 var(--body);padding:8px 11px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--ink);cursor:pointer;text-align:left}
+.answer{white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:14px;font-size:14.5px}
+.status{font:500 12px/1.4 var(--mono);color:var(--muted)}
+footer{font-size:12.5px;color:var(--muted);display:grid;gap:8px}
+footer a,.panel a{color:var(--accent)}
+.global{position:relative}
+.gresults{display:grid;gap:4px;margin-top:6px}
+.gres{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:8px;background:var(--soft);font-size:14px}
+.gres:hover,.gres:focus-visible{outline:2px solid var(--accent)}
+.gres small{font:400 12px/1.3 var(--mono);color:var(--muted)}
+@media (max-width:520px){ th,td{padding:7px 7px} .tile .val{font-size:30px} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">NFL · NBA · MLB · NHL · MLS — <span id="upd">updated daily</span></span>
+  <h1>Big Five Scoring Index</h1>
+  <p class="lede">League scoring trends since 2019, plus searchable player and team stats for each league's current season, refreshed every morning. Tap any player or team for a full breakdown with league ranks.</p>
+  <div class="global">
+    <label for="gq" class="eyebrow">Find a player or team</label>
+    <input type="search" id="gq" placeholder="e.g. Jokić, Celtics, Wembanyama" autocomplete="off" style="width:100%;max-width:520px;margin-top:6px">
+    <div class="gresults" id="gres"></div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Views">
+  <button class="tab" role="tab" id="t-overview" aria-selected="true" data-view="overview">Overview</button>
+  <button class="tab" role="tab" id="t-players" aria-selected="false" data-view="players">Players</button>
+  <button class="tab" role="tab" id="t-teams" aria-selected="false" data-view="teams">Teams</button>
+  <button class="tab" role="tab" id="t-ask" aria-selected="false" data-view="ask">Ask the analyst</button>
+</nav>
+
+<!-- OVERVIEW -->
+<section id="v-overview" class="view" style="display:grid;gap:20px">
+  <div class="tiles" id="tiles"></div>
+  <section class="panel">
+    <div class="sec-head">
+      <h2>Trend across leagues</h2>
+      <div class="seg" role="group" aria-label="Chart scale">
+        <button id="m-index" aria-pressed="true">Index (avg = 100)</button>
+        <button id="m-raw" aria-pressed="false">Actual</button>
+      </div>
+    </div>
+    <p class="note" id="chart-note"></p>
+    <div class="chips" id="chips"></div>
+    <div id="trend"></div>
+  </section>
+  <section class="grid2">
+    <div class="panel">
+      <div class="sec-head"><h2 id="nflw-h">NFL, week by week</h2><span class="eyebrow">pts / team / game</span></div>
+      <div id="nflweeks"></div>
+      <p class="note" id="nflw-note"></p>
+    </div>
+    <div class="panel">
+      <div class="sec-head"><h2>What's moving it</h2></div>
+      <ul class="insights" id="insights"></ul>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="sec-head"><h2>Season table</h2><span class="eyebrow">per team per game</span></div>
+    <div class="tbl-wrap"><table id="tbl"></table></div>
+    <p class="note">Seasons are labelled by the year they start (NBA and NHL 2025 = 2025–26). <i>Italic</i> values are partial seasons. MLS 2020 includes the shortened MLS is Back season.</p>
+  </section>
+</section>
+
+<!-- PLAYERS -->
+<section id="v-players" class="view" hidden style="display:grid;gap:20px">
+  <section class="panel">
+    <div class="sec-head"><h2>Player stats</h2><span class="count" id="p-count"></span></div>
+    <div class="chips" id="p-leagues" role="group" aria-label="League"></div>
+    <div class="controls">
+      <div class="field"><label for="p-q">Search</label><input type="search" id="p-q" placeholder="Player name"></div>
+      <div class="field"><label for="p-team">Team</label><select id="p-team"></select></div>
+      <div class="field" id="p-group-f"><label for="p-group">Stat group</label><select id="p-group"></select></div>
+      <div class="field"><label for="p-min" id="p-min-l">Min games</label><select id="p-min"><option value="0">Any</option><option value="10">10+</option><option value="25" selected>25+</option><option value="50">50+</option></select></div>
+    </div>
+    <div class="tbl-wrap" id="p-wrap" style="max-height:70vh"></div>
+    <div class="row" style="display:flex;gap:8px;align-items:center"><button class="btn ghost" id="p-more" hidden>Show 50 more</button><span class="note" id="p-src"></span></div>
+  </section>
+  <section class="panel detail" id="p-detail" hidden></section>
+</section>
+
+<!-- TEAMS -->
+<section id="v-teams" class="view" hidden style="display:grid;gap:20px">
+  <section class="panel">
+    <div class="sec-head"><h2>Teams</h2><span class="count" id="t-count"></span></div>
+    <div class="chips" id="t-leagues" role="group" aria-label="League"></div>
+    <div class="tbl-wrap" id="t-wrap"></div>
+  </section>
+  <section class="panel detail" id="t-detail" hidden></section>
+</section>
+
+<!-- ASK -->
+<section id="v-ask" class="view" hidden style="display:grid;gap:20px">
+  <section class="panel ask" id="ask">
+    <div class="sec-head"><h2>Ask the analyst</h2><span class="eyebrow">AI · looks up this page's data</span></div>
+    <p class="note" id="ask-intro">Claude can search every player and team on this page, pull league leaders and compare teams, then explain what the numbers show.</p>
+    <div class="chips" id="suggs"></div>
+    <label for="q" class="eyebrow">Your question</label>
+    <textarea id="q" placeholder="Who are the most efficient high-volume scorers in the NBA?"></textarea>
+    <div class="row">
+      <button class="btn" id="go">Ask Claude</button>
+      <button class="btn ghost" id="stop" hidden>Stop</button>
+      <span class="status" id="askmsg"></span>
+    </div>
+    <div class="answer" id="ans" hidden></div>
+  </section>
+  <section class="panel" id="ask-off" hidden><p class="note">The analyst isn't available in this view. Open the page in Claude to ask questions about the data.</p></section>
+</section>
+
+<footer>
+  <p>Trend sources: Pro-Football-Reference, Basketball-Reference, Baseball-Reference, Hockey-Reference, Wikipedia MLS season pages (goals per match, halved to per team), NFL.com. Player and team stats: Basketball-Reference, Hockey-Reference, Baseball-Reference and Pro-Football-Reference league pages, and Stats Crew team pages for MLS, refreshed daily.</p>
+  <p id="foot-status"></p>
+</footer>
+</div>
+
+<script>
+// ---------- League trend data (season averages, per team per game) ----------
+let LEAGUES=[
+ {id:"NFL",unit:"points",dp:1,status:"4 of 18 weeks played",data:{2019:22.8,2020:24.8,2021:23.0,2022:21.9,2023:21.8,2024:22.9,2025:23.0,2026:23.1},partial:2026},
+ {id:"NBA",unit:"points",dp:1,status:"Starts later this month",data:{2019:111.8,2020:112.1,2021:110.6,2022:114.7,2023:114.2,2024:113.8,2025:115.6},partial:null,lastLabel:"2025–26 final"},
+ {id:"MLB",unit:"runs",dp:2,status:"Regular season final",data:{2019:4.83,2020:4.65,2021:4.53,2022:4.28,2023:4.62,2024:4.39,2025:4.45,2026:4.48},partial:null},
+ {id:"NHL",unit:"goals",dp:2,status:"Opening week",data:{2019:2.98,2020:2.90,2021:3.11,2022:3.14,2023:3.08,2024:3.01,2025:3.08,2026:3.12},partial:2026},
+ {id:"MLS",unit:"goals",dp:2,status:"388 of 510 matches",data:{2019:1.52,2020:1.415,2021:1.395,2022:1.48,2023:1.38,2024:1.575,2025:1.50,2026:1.605},partial:2026},
+];
+let YEARS=[2019,2020,2021,2022,2023,2024,2025,2026];
+let NFL_WEEKS=[{w:1,p:791,games:16},{w:2,p:647,games:16},{w:3,p:756,games:16},{w:4,p:764,games:16}],NFL_SEASON=2026,NFL_PREV=23.0;
+// Leagues with player/team data files, in display order
+const DATA_LEAGUES=["NBA","NHL","MLB","NFL","MLS"];
+const STORE={}; // id -> loaded json
+
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fold=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const fmt=(v,dp)=>{if(v==null||v==="")return"—";if(typeof v!=="number")return esc(v);if(dp===3&&v<1)return v.toFixed(3).replace(/^0/,"");return v.toFixed(dp)};
+const lc=id=>`var(--${id.toLowerCase()})`;
+function prepLeagues(){LEAGUES.forEach(l=>{const base=[2019,2020,2021,2022,2023,2024,2025].map(y=>l.data[y]).filter(v=>v!=null);l.avg=base.reduce((a,b)=>a+b,0)/base.length;
+  const ys=Object.keys(l.data).map(Number).sort((a,b)=>a-b);l.curYear=ys[ys.length-1];l.cur=l.data[l.curYear];l.pct=(l.cur/l.avg-1)*100;
+  l.isHigh=l.cur>=Math.max(...ys.filter(y=>y!==l.curYear).map(y=>l.data[y]))});
+  YEARS=[];const maxY=Math.max(...LEAGUES.map(l=>l.curYear));for(let y=2019;y<=maxY;y++)YEARS.push(y)}
+prepLeagues();
+const NS="http://www.w3.org/2000/svg";
+function el(t,a={},p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e}
+
+// ---------- Tabs ----------
+const VIEWS=["overview","players","teams","ask"];
+function show(v){VIEWS.forEach(x=>{$("v-"+x).hidden=x!==v;$("t-"+x).setAttribute("aria-selected",x===v)});
+  try{history.replaceState(null,"","#"+v)}catch(e){}}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.view));
+
+// ---------- Overview ----------
+const tiles=$("tiles");const on=new Set(LEAGUES.map(l=>l.id));
+function renderOverview(){tiles.innerHTML="";$("chips").innerHTML="";$("insights").innerHTML="";
+LEAGUES.forEach(l=>{const d=document.createElement("div");d.className="tile";d.style.setProperty("--c",lc(l.id));
+  const cls=l.pct>1.5?"up":l.pct<-1.5?"down":"flat";
+  const label=l.isHigh?`High since ${YEARS[0]}`:l.pct>1.5?"Above avg":l.pct<-1.5?"Below avg":"On average";
+  const yr=(l.curLabel||l.curYear)+(l.partial===l.curYear?" to date":"");
+  d.innerHTML=`<div class="lg">${l.id}<span class="pill ${cls}">${label}</span></div><div><span class="val">${fmt(l.cur,l.dp)}</span> <span class="unit">${l.unit}/team/game</span></div><div class="cmp">${yr} · ${l.pct>=0?"+":""}${l.pct.toFixed(1)}% vs ’19–’25 avg (${fmt(l.avg,l.dp)})</div><div class="cmp">${esc(l.status)}</div>`;
+  tiles.appendChild(d)});
+LEAGUES.forEach(l=>{const b=document.createElement("button");b.className="chip";b.style.setProperty("--c",lc(l.id));b.setAttribute("aria-pressed","true");b.innerHTML=`<i></i>${l.id}`;
+  b.onclick=()=>{if(on.has(l.id)){if(on.size>1)on.delete(l.id)}else on.add(l.id);b.setAttribute("aria-pressed",on.has(l.id));drawTrend()};$("chips").appendChild(b)});
+INS.forEach(([id,t])=>{const li=document.createElement("li");li.style.setProperty("--c",lc(id));li.innerHTML=`<b class="tag">${id}</b><span>${esc(t)}</span>`;$("insights").appendChild(li)});
+renderTable();
+$("nflw-h").textContent=`NFL ${NFL_SEASON}, week by week`;
+const wk1=NFL_WEEKS[0];$("nflw-note").textContent=(wk1?`Points per team per game in each week of the ${NFL_SEASON} regular season. `:"")+(NFL_PREV?`Dashed line: ${NFL_SEASON-1} full-season average (${NFL_PREV.toFixed(1)}).`:"");
+redrawAll()}
+let mode="index";
+$("m-index").onclick=()=>{mode="index";setSeg();drawTrend()};$("m-raw").onclick=()=>{mode="raw";setSeg();drawTrend()};
+function setSeg(){$("m-index").setAttribute("aria-pressed",mode==="index");$("m-raw").setAttribute("aria-pressed",mode==="raw");
+  $("chart-note").textContent=mode==="index"?"Each league is scaled to its own 2019–2025 average, set to 100, so a football point and a hockey goal can share one chart. Dashed segments are seasons still in progress.":"Actual per-team-per-game values. Pick one league at a time for a readable scale; each league uses a different unit."}
+setSeg();
+function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r)));const n=r/p;return(n<1.5?1:n<3?2:n<7?5:10)*p}
+function drawTrend(){const box=$("trend");box.innerHTML="";const W=640,H=300,m={l:46,r:56,t:14,b:30};
+  const ls=LEAGUES.filter(l=>on.has(l.id));const val=(l,y)=>l.data[y]==null?null:(mode==="index"?l.data[y]/l.avg*100:l.data[y]);
+  let vals=[];ls.forEach(l=>YEARS.forEach(y=>{const v=val(l,y);if(v!=null)vals.push(v)}));let lo=Math.min(...vals),hi=Math.max(...vals);
+  if(mode==="index"){lo=Math.min(lo,96);hi=Math.max(hi,104)}const pad=(hi-lo)*.12||1;lo-=pad;hi+=pad;const step=niceStep((hi-lo)/5);lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  const y0=YEARS[0],y1=YEARS[YEARS.length-1];const x=y=>m.l+(y-y0)/(y1-y0)*(W-m.l-m.r),yy=v=>m.t+(hi-v)/(hi-lo)*(H-m.t-m.b);
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"Scoring trend by league"},box);
+  for(let v=lo;v<=hi+1e-9;v+=step){el("line",{x1:m.l,x2:W-m.r,y1:yy(v),y2:yy(v),stroke:css("--line"),"stroke-width":1},s);const t=el("text",{x:m.l-8,y:yy(v)+4,"text-anchor":"end","font-size":12},s);t.textContent=step<1?v.toFixed(step<.1?2:1):Math.round(v)}
+  if(mode==="index"&&lo<100&&hi>100)el("line",{x1:m.l,x2:W-m.r,y1:yy(100),y2:yy(100),stroke:css("--muted"),"stroke-width":1.2,"stroke-dasharray":"2 3"},s);
+  YEARS.forEach(y=>{const t=el("text",{x:x(y),y:H-8,"text-anchor":"middle","font-size":12},s);t.textContent="’"+String(y).slice(2)});
+  const labels=[];ls.forEach(l=>{const c=css("--"+l.id.toLowerCase());const pts=YEARS.filter(y=>l.data[y]!=null).map(y=>[x(y),yy(val(l,y)),y]);const solid=pts.filter(p=>p[2]!==l.partial);
+    el("path",{d:"M"+solid.map(p=>p[0]+","+p[1]).join("L"),fill:"none",stroke:c,"stroke-width":2.5,"stroke-linejoin":"round","stroke-linecap":"round"},s);
+    if(l.partial&&pts.length>1){const a=pts[pts.length-2],b=pts[pts.length-1];el("path",{d:`M${a[0]},${a[1]}L${b[0]},${b[1]}`,fill:"none",stroke:c,"stroke-width":2.5,"stroke-dasharray":"4 4"},s)}
+    pts.forEach((p,i)=>{const last=i===pts.length-1;el("circle",{cx:p[0],cy:p[1],r:last?5:3,fill:last?c:css("--panel"),stroke:c,"stroke-width":2},s)});
+    const lp=pts[pts.length-1];labels.push({y:lp[1],x:lp[0],c,t:l.id+(mode==="index"?" "+Math.round(val(l,lp[2])):"")})});
+  labels.sort((a,b)=>a.y-b.y);for(let i=1;i<labels.length;i++)if(labels[i].y-labels[i-1].y<15)labels[i].y=labels[i-1].y+15;
+  labels.forEach(L=>{const t=el("text",{x:Math.max(L.x+9,W-m.r+6),y:L.y+4,"font-size":12,"font-weight":600},s);t.style.fill=L.c;t.textContent=L.t})}
+function drawWeeks(){const box=$("nflweeks");box.innerHTML="";const W=360,H=210,m={l:34,r:10,t:16,b:28},max=30;
+  const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":`NFL ${NFL_SEASON} points per team per game by week`},box);const yy=v=>m.t+(max-v)/max*(H-m.t-m.b);
+  [0,10,20,30].forEach(v=>{el("line",{x1:m.l,x2:W-m.r,y1:yy(v),y2:yy(v),stroke:css("--line")},s);const t=el("text",{x:m.l-6,y:yy(v)+4,"text-anchor":"end","font-size":11},s);t.textContent=v});
+  const bw=(W-m.l-m.r)/NFL_WEEKS.length;NFL_WEEKS.forEach((w,i)=>{const v=w.p/(2*(w.games||16)),x0=m.l+i*bw+bw*.2;el("rect",{x:x0,y:yy(v),width:bw*.6,height:yy(0)-yy(v),rx:3,fill:css("--nfl")},s);
+    const t=el("text",{x:x0+bw*.3,y:yy(v)-6,"text-anchor":"middle","font-size":12,"font-weight":600},s);t.style.fill=css("--ink");t.textContent=v.toFixed(1);const b=el("text",{x:x0+bw*.3,y:H-8,"text-anchor":"middle","font-size":11},s);b.textContent="Wk "+w.w});
+  if(NFL_PREV)el("line",{x1:m.l,x2:W-m.r,y1:yy(NFL_PREV),y2:yy(NFL_PREV),stroke:css("--ink"),"stroke-width":1.4,"stroke-dasharray":"5 4"},s)}
+let INS=[["NFL","Through four weeks teams average 23.1 points, a hair above 2025 (23.0) and the best since the record 24.8 of 2020. The dynamic kickoff has pushed average starting field position to its highest since 2003, which shortens drives."],
+ ["NBA","2025–26 finished at 115.6 points per team, the highest in this span. Free throws drove much of it: attempts per field-goal try rose to .206 from .189 the year before."],
+ ["MLB","Runs ticked up to 4.48 in 2026 from 4.45, and remain well under the 4.83 of 2019, the last big home-run year."],
+ ["NHL","Goals held near 3.1 per team for the fifth straight full season, the highest stretch since the mid-1990s. The 2026–27 opening week is at 3.12."],
+ ["MLS","2026 is running at 3.21 goals per match (1.61 per team), ahead of the league's previous high of 3.20 in 2018 with the regular season running to Nov 7."]];
+function renderTable(){let h="<thead><tr><th>League</th>"+YEARS.map(y=>`<th>${y}</th>`).join("")+"<th>’19–’25 avg</th></tr></thead><tbody>";
+  LEAGUES.forEach(l=>{h+=`<tr style="--c:${lc(l.id)};cursor:default"><td><span class="sw"></span>${l.id} <span style="color:var(--muted)">${l.unit}</span></td>`+YEARS.map(y=>l.data[y]==null?`<td>—</td>`:`<td class="${y===l.partial?"prov":""}">${fmt(l.data[y],l.dp)}</td>`).join("")+`<td>${fmt(l.avg,l.dp)}</td></tr>`});
+  $("tbl").innerHTML=h+"</tbody>"}
+
+// ---------- Data helpers ----------
+function teamName(L,abbr){const t=STORE[L]?.teams.find(t=>t.abbr===abbr);return t?t.name:abbr}
+function groupOf(L,gid){return STORE[L].groups.find(g=>g.id===gid)||STORE[L].groups[0]}
+function qualified(L,g,row){const k=g.minKey;if(!k)return true;const all=g.rows.map(r=>r[k]||0);const max=Math.max(...all);return (row[k]||0)>=max*0.4}
+// rank of a value among qualified rows for a column (1 = best). Lower-is-better columns flagged with col.low
+function rankOf(L,g,col,val){if(typeof val!=="number")return null;const vals=g.rows.filter(r=>qualified(L,g,r)&&typeof r[col.k]==="number").map(r=>r[col.k]);
+  const better=vals.filter(v=>col.low?v<val:v>val).length;return {rank:better+1,of:vals.length}}
+function teamRank(L,col,val){const vals=STORE[L].teams.map(t=>t[col.k]).filter(v=>typeof v==="number");const low=col.low;const better=vals.filter(v=>low?v<val:v>val).length;return {rank:better+1,of:vals.length}}
+const ord=n=>n+(["th","st","nd","rd"][(n%100-20)%10]||["th","st","nd","rd"][n%100]||"th");
+
+// ---------- Players view ----------
+const PS={league:"NBA",team:"",group:null,q:"",min:25,sort:null,dir:-1,limit:50};
+function leagueChips(box,state,onPick){box.innerHTML="";DATA_LEAGUES.forEach(id=>{const b=document.createElement("button");b.className="chip";b.style.setProperty("--c",lc(id));
+  const ready=!!STORE[id];b.disabled=!ready;b.setAttribute("aria-pressed",state.league===id);b.innerHTML=`<i></i>${id}${ready?"":' <span class="soon">loading</span>'}`;
+  b.onclick=()=>onPick(id);box.appendChild(b)})}
+function pickPlayersLeague(id){PS.league=id;PS.team="";PS.group=null;PS.sort=null;PS.limit=50;renderPlayers()}
+["p-q","p-team","p-group","p-min"].forEach(id=>$(id).addEventListener(id==="p-q"?"input":"change",()=>{if(id==="p-group"){PS.sort=null;PS.dir=-1}PS.q=$("p-q").value;PS.team=$("p-team").value;PS.group=$("p-group").value;PS.min=+$("p-min").value;PS.limit=50;renderPlayers(false)}));
+$("p-more").onclick=()=>{PS.limit+=50;renderPlayers(false)};
+function renderPlayers(rebuild=true){leagueChips($("p-leagues"),PS,pickPlayersLeague);const D=STORE[PS.league];if(!D){$("p-wrap").innerHTML='<div class="empty">Loading…</div>';return}
+  const g=groupOf(PS.league,PS.group);if(rebuild){
+    $("p-team").innerHTML='<option value="">All teams</option>'+D.teams.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(t=>`<option value="${t.abbr}">${esc(t.name)}</option>`).join("");$("p-team").value=PS.team;
+    $("p-group").innerHTML=D.groups.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join("");$("p-group").value=g.id;$("p-group-f").hidden=D.groups.length<2;
+    $("p-q").value=PS.q;}
+  const mo=g.minOpts||[0,10,25,50];if($("p-min").dataset.g!==PS.league+g.id){$("p-min").dataset.g=PS.league+g.id;PS.min=g.minDefault??25;$("p-min").innerHTML=mo.map(v=>`<option value="${v}">${v?v+"+":"Any"}</option>`).join("");$("p-min").value=PS.min}
+  $("p-min-l").textContent=g.minLabel||"Min games";
+  if(!PS.sort||(PS.sort!=="name"&&!g.cols.some(c=>c.k===PS.sort)))PS.sort=g.sortDefault;
+  const q=fold(PS.q);let rows=g.rows.filter(r=>(!PS.team||r.team===PS.team)&&(!q||fold(r.name).includes(q))&&(g.minKey?(r[g.minKey]||0)>=PS.min:true));
+  const col=g.cols.find(c=>c.k===PS.sort);
+  rows.sort((a,b)=>{if(PS.sort==="name")return a.name.localeCompare(b.name)*(PS.dir<0?1:-1);const av=a[PS.sort],bv=b[PS.sort];if(typeof av!=="number")return 1;if(typeof bv!=="number")return -1;const v=(bv-av)*(col?.low?-1:1);return PS.dir<0?v:-v});
+  $("p-count").textContent=`${rows.length} of ${g.rows.length} ${g.label.toLowerCase()} rows`;
+  const shown=rows.slice(0,PS.limit);
+  let h=`<table><thead><tr><th aria-sort="${PS.sort==="name"?(PS.dir<0?"descending":"ascending"):""}"><button data-k="name">Player</button></th>`+
+    g.cols.map(c=>`<th${PS.sort===c.k?` aria-sort="${PS.dir<0?"descending":"ascending"}"`:""}><button data-k="${c.k}">${esc(c.label)}</button></th>`).join("")+`</tr></thead><tbody>`;
+  h+=shown.map((r,i)=>`<tr tabindex="0" data-i="${g.rows.indexOf(r)}"><td><span class="pname">${esc(r.name)}</span><span class="psub">${esc(r.team)}${r.pos?" · "+esc(r.pos):""}${r.age?" · "+r.age:""}</span></td>`+g.cols.map(c=>`<td class="${c.k===PS.sort?"hl":""}">${fmt(r[c.k],c.dp)}</td>`).join("")+`</tr>`).join("");
+  h+=`</tbody></table>`;if(!shown.length)h='<div class="empty">No players match. Try fewer filters or a lower games minimum.</div>';
+  $("p-wrap").innerHTML=h;$("p-more").hidden=rows.length<=PS.limit;$("p-src").innerHTML=`${esc(D.season)} · <a href="${D.source.url}" target="_blank" rel="noopener">${esc(D.source.label)}</a>`;
+  $("p-wrap").querySelectorAll("th button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(PS.sort===k)PS.dir*=-1;else{PS.sort=k;PS.dir=-1}renderPlayers(false)});
+  $("p-wrap").querySelectorAll("tbody tr").forEach(tr=>{const open=()=>showPlayer(PS.league,g.id,+tr.dataset.i);tr.onclick=open;tr.onkeydown=e=>{if(e.key==="Enter")open()}})}
+function showPlayer(L,gid,idx,scroll=true){const D=STORE[L],g=groupOf(L,gid),r=g.rows[idx];const box=$("p-detail");box.style.setProperty("--c",lc(L));box.hidden=false;
+  const others=D.groups.filter(x=>x.id!==g.id).map(x=>({x,i:x.rows.findIndex(o=>o.name===r.name&&o.team===r.team)})).filter(o=>o.i>=0);
+  const sameName=[];D.groups.forEach(x=>x.rows.forEach((o,i)=>{if(o.name===r.name&&o.team!==r.team)sameName.push({x,i,o})}));
+  const tiles=g.cols.map(c=>{const rk=qualified(L,g,r)?rankOf(L,g,c,r[c.k]):null;return `<div><span>${esc(c.label)}</span><b>${fmt(r[c.k],c.dp)}</b>${rk&&rk.rank<=Math.max(10,Math.ceil(rk.of*.1))?`<em>${ord(rk.rank)} of ${rk.of}</em>`:rk?`<em style="color:var(--muted)">${ord(rk.rank)} of ${rk.of}</em>`:""}</div>`}).join("");
+  box.innerHTML=`<div class="sec-head"><div><span class="eyebrow">${L} · ${esc(teamName(L,r.team))}${r.pos?" · "+esc(r.pos):""}${r.age?" · age "+r.age:""}</span><h2 style="margin-top:6px">${esc(r.name)}</h2></div><button class="btn ghost" id="pd-close">Close</button></div>
+   <p class="note">${esc(g.label)} · ${esc(D.season)}. League ranks are among players with at least 40% of the leader's ${esc(g.minKey||"games")}${qualified(L,g,r)?"":" — this player is below that threshold, so no ranks are shown"}.</p>
+   <div class="kv">${tiles}</div>
+   ${others.length?`<div class="chips">${others.map(o=>`<button class="chip" data-g="${o.x.id}" data-i="${o.i}" style="--c:${lc(L)}">${esc(o.x.label)} line</button>`).join("")}</div>`:""}
+   ${sameName.length?`<p class="note">Also played for: ${sameName.map(s=>`<a href="#" data-g="${s.x.id}" data-i="${s.i}">${esc(teamName(L,s.o.team))}</a>`).join(", ")}</p>`:""}
+   <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="pd-team">View ${esc(teamName(L,r.team))}</button><button class="btn ghost" id="pd-ask">Ask about ${esc(r.name.split(" ").slice(-1)[0])}</button></div>`;
+  $("pd-close").onclick=()=>{box.hidden=true};
+  box.querySelectorAll("[data-g]").forEach(b=>b.onclick=e=>{e.preventDefault();showPlayer(L,b.dataset.g,+b.dataset.i)});
+  $("pd-team").onclick=()=>{TS.league=L;TS.team=r.team;show("teams");renderTeams();showTeam(L,r.team)};
+  $("pd-ask").onclick=()=>{show("ask");$("q").value=`How does ${r.name} (${L}, ${teamName(L,r.team)}) compare with the rest of the league, and what stands out in his numbers?`;$("q").focus()};
+  if(scroll)box.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"})}
+
+// ---------- Teams view ----------
+const TS={league:"NBA",team:null,sort:null,dir:-1};
+function renderTeams(){leagueChips($("t-leagues"),TS,id=>{TS.league=id;TS.team=null;TS.sort=null;$("t-detail").hidden=true;renderTeams()});const D=STORE[TS.league];if(!D){$("t-wrap").innerHTML='<div class="empty">Loading…</div>';return}
+  const cols=D.teamCols;if(!TS.sort||(TS.sort!=="name"&&!cols.some(c=>c.k===TS.sort)))TS.sort=D.teamSort||cols[0].k;const rows=D.teams.slice().sort((a,b)=>{const av=a[TS.sort],bv=b[TS.sort];if(TS.sort==="name")return a.name.localeCompare(b.name)*-TS.dir;const lo=cols.find(c=>c.k===TS.sort)?.low?-1:1;return ((bv??-1e9)-(av??-1e9))*lo*(TS.dir<0?1:-1)});
+  $("t-count").textContent=`${rows.length} teams · ${D.season}`;
+  let h=`<table><thead><tr><th${TS.sort==="name"?` aria-sort="${TS.dir<0?"descending":"ascending"}"`:""}><button data-k="name">Team</button></th>`+cols.map(c=>`<th${TS.sort===c.k?` aria-sort="${TS.dir<0?"descending":"ascending"}"`:""}><button data-k="${c.k}">${esc(c.label)}</button></th>`).join("")+`</tr></thead><tbody>`;
+  h+=rows.map(t=>`<tr tabindex="0" data-a="${t.abbr}"><td><span class="pname">${esc(t.name)}</span><span class="psub">${esc(t.abbr)}</span></td>`+cols.map(c=>`<td class="${c.k===TS.sort?"hl":""}">${c.k==="DIFF"&&t[c.k]>0?"+":""}${fmt(t[c.k],c.dp)}</td>`).join("")+`</tr>`).join("")+`</tbody></table>`;
+  $("t-wrap").innerHTML=h;
+  $("t-wrap").querySelectorAll("th button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(TS.sort===k)TS.dir*=-1;else{TS.sort=k;TS.dir=-1}renderTeams()});
+  $("t-wrap").querySelectorAll("tbody tr").forEach(tr=>{const open=()=>showTeam(TS.league,tr.dataset.a);tr.onclick=open;tr.onkeydown=e=>{if(e.key==="Enter")open()}})}
+function showTeam(L,abbr,scroll=true){const D=STORE[L];const t=D.teams.find(x=>x.abbr===abbr);if(!t)return;TS.team=abbr;const box=$("t-detail");box.style.setProperty("--c",lc(L));box.hidden=false;
+  const kv=D.teamCols.map(c=>{const rk=typeof t[c.k]==="number"?teamRank(L,c,t[c.k]):null;return `<div><span>${esc(c.label)}</span><b>${c.k==="DIFF"&&t[c.k]>0?"+":""}${fmt(t[c.k],c.dp)}</b>${rk&&c.k!=="L"?`<em${rk.rank>10?' style="color:var(--muted)"':""}>${ord(rk.rank)} of ${rk.of}</em>`:""}</div>`}).join("");
+  const sections=D.groups.map(g=>{const roster=g.rows.map((r,i)=>({r,i})).filter(o=>o.r.team===abbr);if(!roster.length)return"";
+    const key=g.sortDefault,kc=g.cols.find(c=>c.k===key);roster.sort((a,b)=>(b.r[key]??-1)-(a.r[key]??-1));
+    // share chart: use totals when a per-game column exists with games
+    const share=g.shareKey?roster.map(o=>({n:o.r.name,v:(o.r[g.shareKey]||0)*(g.shareMult?o.r[g.shareMult]||0:1)})).filter(o=>o.v>0):[];
+    const tot=share.reduce((a,b)=>a+b.v,0);const top=share.sort((a,b)=>b.v-a.v).slice(0,8);
+    const bars=top.length&&tot?`<div><h3 style="margin-bottom:8px">${esc(g.shareLabel)}</h3><div class="bars">${top.map(o=>`<div class="bar"><span class="nm">${esc(o.n)}</span><span class="tr"><i style="width:${(o.v/top[0].v*100).toFixed(1)}%"></i></span><span class="v">${(o.v/tot*100).toFixed(0)}%</span></div>`).join("")}</div></div>`:"";
+    const cols=g.cols;
+    const tbl=`<div class="tbl-wrap"><table><thead><tr><th>Player</th>${cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${roster.map(o=>`<tr tabindex="0" data-g="${g.id}" data-i="${o.i}"><td><span class="pname">${esc(o.r.name)}</span><span class="psub">${esc(o.r.pos||"")}${o.r.age?" · "+o.r.age:""}</span></td>${cols.map(c=>`<td class="${c.k===key?"hl":""}">${fmt(o.r[c.k],c.dp)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    return `<div style="display:grid;gap:12px"><div class="sec-head"><h3>${esc(g.label)}</h3><span class="count">${roster.length} players · sorted by ${esc(kc?.label||key)}</span></div>${bars}${tbl}</div>`}).join("");
+  box.innerHTML=`<div class="sec-head"><div><span class="eyebrow">${L} · ${esc(D.season)}</span><h2 style="margin-top:6px">${esc(t.name)}</h2></div><button class="btn ghost" id="td-close">Close</button></div>
+   <div class="kv">${kv}</div>${sections}
+   <div class="row" style="display:flex;gap:8px"><button class="btn ghost" id="td-ask">Ask about the ${esc(t.name.split(" ").slice(-1)[0])}</button></div>`;
+  $("td-close").onclick=()=>{box.hidden=true};
+  $("td-ask").onclick=()=>{show("ask");$("q").value=`Break down the ${t.name} (${L}): how they scored, who carried the load, and how they compare with the league.`;$("q").focus()};
+  box.querySelectorAll("tbody tr[data-g]").forEach(tr=>{const open=()=>{show("players");PS.league=L;PS.group=tr.dataset.g;renderPlayers();showPlayer(L,tr.dataset.g,+tr.dataset.i)};tr.onclick=open;tr.onkeydown=e=>{if(e.key==="Enter")open()}});
+  if(scroll)box.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"})}
+
+// ---------- Global search ----------
+$("gq").addEventListener("input",()=>{const q=fold($("gq").value.trim());const box=$("gres");box.innerHTML="";if(q.length<2)return;const out=[];
+  for(const L of DATA_LEAGUES){const D=STORE[L];if(!D)continue;D.teams.forEach(t=>{if(fold(t.name).includes(q)||fold(t.abbr)===q)out.push({kind:"team",L,t})});
+    D.groups.forEach(g=>g.rows.forEach((r,i)=>{if(fold(r.name).includes(q))out.push({kind:"player",L,g,r,i})}))}
+  const seen=new Set();out.filter(o=>{const k=o.kind+o.L+(o.t?o.t.abbr:o.r.name+o.r.team);if(seen.has(k))return false;seen.add(k);return true}).slice(0,8).forEach(o=>{const b=document.createElement("button");b.className="gres";
+    if(o.kind==="team"){b.innerHTML=`<span><b>${esc(o.t.name)}</b></span><small>${o.L} team</small>`;b.onclick=()=>{TS.league=o.L;show("teams");renderTeams();showTeam(o.L,o.t.abbr);box.innerHTML="";$("gq").value=""}}
+    else{const g=o.g;b.innerHTML=`<span><b>${esc(o.r.name)}</b> <small>${esc(teamName(o.L,o.r.team))}</small></span><small>${o.L} · ${esc(g.cols.find(c=>c.k===g.sortDefault).label)} ${fmt(o.r[g.sortDefault],g.cols.find(c=>c.k===g.sortDefault).dp)}</small>`;
+      b.onclick=()=>{PS.league=o.L;PS.group=g.id;PS.team="";PS.q="";show("players");renderPlayers();showPlayer(o.L,g.id,o.i);box.innerHTML="";$("gq").value=""}}
+    box.appendChild(b)});if(!box.children.length)box.innerHTML='<p class="note">No match in the leagues loaded so far.</p>'});
+
+// ---------- Load data ----------
+function redrawAll(){drawTrend();drawWeeks()}
+renderOverview();
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const nice=iso=>{const d=new Date(iso);return isNaN(d)?"":`${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`};
+(async()=>{try{const r=await fetch("data/trends.json",{cache:"no-cache"});if(!r.ok)throw 0;const t=await r.json();
+  LEAGUES=t.leagues.map(l=>({...l,data:Object.fromEntries(Object.entries(l.data).map(([k,v])=>[Number(k),v]))}));
+  if(t.nflWeeks){NFL_WEEKS=t.nflWeeks.weeks||[];NFL_SEASON=t.nflWeeks.season;NFL_PREV=t.nflWeeks.prevAvg}
+  if(t.insights)INS=t.insights;prepLeagues();renderOverview()}catch(e){}
+  try{const r=await fetch("data/meta.json",{cache:"no-cache"});if(!r.ok)throw 0;const m=await r.json();
+    if(m.updated)$("upd").textContent="updated "+nice(m.updated);
+    const stale=Object.entries(m.leagues||{}).filter(([k,v])=>v.ok===false).map(([k,v])=>`${k} (last refreshed ${v.updated?nice(v.updated):"earlier"})`);
+    if(stale.length)$("foot-status").textContent+=` Today's refresh didn't complete for ${stale.join(", ")}, so those show the previous data.`}catch(e){}})();
+try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",redrawAll)}catch(e){}
+new MutationObserver(redrawAll).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+async function loadAll(){const loaded=[];await Promise.all(DATA_LEAGUES.map(async L=>{try{const r=await fetch(`data/${L.toLowerCase()}.json`,{cache:"no-cache"});if(!r.ok)throw 0;STORE[L]=await r.json();loaded.push(L)}catch(e){}}));
+  if(!STORE[PS.league]){PS.league=DATA_LEAGUES.find(L=>STORE[L])||"NBA";TS.league=PS.league}
+  renderPlayers();renderTeams();
+  const missing=DATA_LEAGUES.filter(L=>!STORE[L]);
+  $("foot-status").textContent=missing.length?`Player and team data loaded for ${DATA_LEAGUES.filter(L=>STORE[L]).join(", ")}. Still being gathered: ${missing.join(", ")}.`:"Player and team data loaded for all five leagues.";
+  document.querySelectorAll("#p-leagues .chip .soon,#t-leagues .chip .soon").forEach(s=>s.textContent="coming soon")}
+loadAll();
+const h0=(location.hash||"").slice(1);if(VIEWS.includes(h0))show(h0);
+
+// ---------- AI analyst ----------
+const SUGG=["Who were the most efficient high-volume scorers in the NBA?","Which NHL goalies had the best save percentage on a heavy workload?","Who were the best MLB hitters by OPS, and which pitchers dominated?","Which NFL defenses forced the most takeaways, and who led them?","Which teams relied most on one scorer, in the NBA and NHL?","Who led MLS in goals plus assists, and which keepers saved the most?","Compare the Avalanche and the Hurricanes.","Which young players (22 or under) put up the biggest numbers?"];
+function compact(L,g,r){const o={name:r.name,team:r.team,teamName:teamName(L,r.team),league:L,group:g.label};if(r.pos)o.pos=r.pos;if(r.age)o.age=r.age;g.cols.forEach(c=>{if(r[c.k]!=null)o[c.label]=r[c.k]});return o}
+const TOOLS=[
+ {name:"search_players",description:"Find players by (partial) name across all loaded leagues. Returns up to 10 matches with their full stat line, team and league.",
+  inputSchema:{type:"object",properties:{query:{type:"string"},league:{type:"string",description:"Optional: NBA, NHL, MLB, NFL or MLS"}},required:["query"]},
+  execute:({query,league})=>{const q=fold(query);const out=[];for(const L of DATA_LEAGUES){if(league&&L!==String(league).toUpperCase())continue;const D=STORE[L];if(!D)continue;D.groups.forEach(g=>g.rows.forEach(r=>{if(fold(r.name).includes(q))out.push(compact(L,g,r))}))}return out.slice(0,10)}},
+ {name:"league_leaders",description:"Top players in a league for one stat column (use the column label as shown, e.g. PTS, AST, 3P%). Applies the page's qualification minimum. Returns name, team and the full stat line.",
+  inputSchema:{type:"object",properties:{league:{type:"string"},stat:{type:"string"},group:{type:"string",description:"Optional stat group label"},n:{type:"number"},ascending:{type:"boolean"}},required:["league","stat"]},
+  execute:({league,stat,group,n,ascending})=>{const L=String(league).toUpperCase();const D=STORE[L];if(!D)throw new Error(`${L} data is not loaded yet. Loaded: ${DATA_LEAGUES.filter(x=>STORE[x]).join(", ")}`);
+    const g=D.groups.find(x=>!group||fold(x.label)===fold(group))||D.groups[0];const col=g.cols.find(c=>fold(c.label)===fold(stat)||fold(c.k)===fold(stat));if(!col)throw new Error(`Unknown stat. Columns: ${g.cols.map(c=>c.label).join(", ")}`);
+    const rows=g.rows.filter(r=>qualified(L,g,r)&&typeof r[col.k]==="number").sort((a,b)=>ascending?a[col.k]-b[col.k]:b[col.k]-a[col.k]).slice(0,Math.min(25,Number(n)||10));return rows.map(r=>compact(L,g,r))}},
+ {name:"get_team",description:"A team's record and team stats with league ranks, plus its full roster stat lines. Accepts team name, nickname or abbreviation.",
+  inputSchema:{type:"object",properties:{league:{type:"string"},team:{type:"string"}},required:["league","team"]},
+  execute:({league,team})=>{const L=String(league).toUpperCase();const D=STORE[L];if(!D)throw new Error(`${L} data is not loaded yet.`);const q=fold(team);
+    const t=D.teams.find(x=>fold(x.abbr)===q||fold(x.name).includes(q));if(!t)throw new Error(`No ${L} team matches "${team}".`);
+    const stats={};D.teamCols.forEach(c=>{if(t[c.k]!=null){const rk=teamRank(L,c,t[c.k]);stats[c.label]={value:t[c.k],rank:`${rk.rank} of ${rk.of}`}}});
+    const roster=[];D.groups.forEach(g=>g.rows.filter(r=>r.team===t.abbr).forEach(r=>roster.push(compact(L,g,r))));return {team:t.name,abbr:t.abbr,league:L,season:D.season,stats,roster}}},
+ {name:"standings",description:"All teams in a league with record and team stats.",inputSchema:{type:"object",properties:{league:{type:"string"}},required:["league"]},
+  execute:({league})=>{const L=String(league).toUpperCase();const D=STORE[L];if(!D)throw new Error(`${L} data is not loaded yet.`);return D.teams.map(t=>{const o={team:t.name,abbr:t.abbr};D.teamCols.forEach(c=>o[c.label]=t[c.k]);return o})}},
+];
+(async()=>{
+  const sample=await window.claude?.use?.("sample");
+  if(!sample){$("ask").hidden=true;$("ask-off").hidden=false;$("t-ask").hidden=true;return}
+  const lim=await sample.limits().catch(()=>null);const canTools=!!lim?.tools;
+  SUGG.forEach(t=>{const b=document.createElement("button");b.className="sugg";b.textContent=t;b.onclick=()=>{$("q").value=t;ask()};$("suggs").appendChild(b)});
+  let ctl;$("stop").onclick=()=>ctl?.abort();$("go").onclick=ask;
+  async function ask(){const question=$("q").value.trim();const ans=$("ans"),msg=$("askmsg");if(!question){msg.textContent="Type a question first.";return}
+    ctl=new AbortController();$("go").disabled=true;$("stop").hidden=false;msg.textContent="";ans.hidden=false;ans.textContent="Thinking...";
+    const loaded=DATA_LEAGUES.filter(L=>STORE[L]);
+    const trend="League scoring per team per game by season (start year): "+LEAGUES.map(l=>`${l.id} ${YEARS.filter(y=>l.data[y]!=null).map(y=>`${y}=${l.data[y]}${y===l.partial?"*":""}`).join(", ")}`).join("; ")+" (* = in progress).";
+    const seasons=loaded.map(L=>`${L}: ${STORE[L].season}; stat groups ${STORE[L].groups.map(g=>`${g.label} [${g.cols.map(c=>c.label).join(", ")}]`).join(" | ")}`).join("\n");
+    let prompt=`You are a sports statistics analyst working inside a stats dashboard. Answer the viewer's question using the dashboard's data. Use the tools to look up players, teams and league leaders rather than relying on memory, and cite specific numbers. Keep the answer under 220 words, in plain sentences or a short list. Say clearly if data for a league isn't loaded yet. Column meanings follow each league's standard abbreviations; NBA stats are per-game averages, NHL/MLB/NFL/MLS stats are season totals unless the label says otherwise (e.g. GF/G, TOI/G in minutes).\n\nLoaded leagues and columns:\n${seasons}\n\n${trend}\n\nQuestion: ${question}`;
+    const opts={signal:ctl.signal,onText:({text})=>{ans.textContent=text}};
+    if(canTools){opts.tools=TOOLS.map(t=>({...t,execute:(i)=>{msg.textContent=`Looking up ${t.name.replace("_"," ")}…`;return t.execute(i||{})}}))}
+    else{const lead=loaded.map(L=>{const g=STORE[L].groups[0];const k=g.sortDefault;return `${L} top ${g.cols.find(c=>c.k===k).label}: `+g.rows.filter(r=>qualified(L,g,r)).sort((a,b)=>b[k]-a[k]).slice(0,15).map(r=>`${r.name} (${r.team}) ${r[k]}`).join("; ")}).join("\n");
+      prompt+=`\n\nLeaders you can use:\n${lead}\n\nStandings:\n`+loaded.map(L=>`${L}: `+STORE[L].teams.map(t=>`${t.abbr} ${t.W}-${t.L}`).join(", ")).join("\n");opts.cache=false}
+    try{await sample(prompt,opts);msg.textContent=""}
+    catch(e){ans.textContent=e.text??"";
+      if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e.code)){$("ask").hidden=true;$("ask-off").hidden=false}
+      else if(e.code==="rate_limited")msg.textContent="Too many questions right now. Try again in a minute.";
+      else if(e.code==="session_expired")msg.textContent="Sign in again to ask Claude.";
+      else if(e.code!=="cancelled")msg.textContent="Claude couldn't finish that answer. Try rephrasing or narrowing the question.";
+      if(!ans.textContent)ans.hidden=true}
+    finally{$("go").disabled=false;$("stop").hidden=true}}
+})();
+</script>
+</body>
+</html>
