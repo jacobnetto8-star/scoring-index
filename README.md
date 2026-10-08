@@ -19,7 +19,8 @@ The site rebuilds itself every morning.
 Each run makes about 50 page requests, spaced 4 seconds apart per site.
 
 **Sources:**
-- Basketball-Reference, Hockey-Reference, Baseball-Reference and Pro-Football-Reference league pages
+- Basketball-Reference, Hockey-Reference and Baseball-Reference league pages
+- nflverse open NFL data (github.com/nflverse/nflverse-data) for the NFL
 - Stats Crew team pages for MLS
 
 **Which season each league shows:** the scraper picks the current season automatically. Before a new season has games, it keeps showing the last completed one. For example, the NBA switches to 2026–27 after opening night.

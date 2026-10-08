@@ -350,90 +350,97 @@ def nfl_team(r):
     return None
 
 
+NV = "https://github.com/nflverse/nflverse-data/releases/download"
+NV_CODES = {"GB": "GNB", "KC": "KAN", "LA": "LAR", "LV": "LVR", "NE": "NWE", "NO": "NOR", "SF": "SFO", "TB": "TAM"}
+
+
+def nv_csv(path):
+    text = F.get(f"{NV}/{path}", gap=1)
+    if not text:
+        raise LookupError(f"nflverse file {path} not published yet")
+    return list(csv.DictReader(text.splitlines()))
+
+
+def passer_rating(cmp_, att, yds, td, ints):
+    if att <= 0:
+        return ""
+    clamp = lambda x: max(0.0, min(2.375, x))
+    a = clamp((cmp_ / att - 0.3) * 5)
+    b = clamp((yds / att - 3) * 0.25)
+    c = clamp(td / att * 20)
+    e = clamp(2.375 - ints / att * 25)
+    return round((a + b + c + e) / 6 * 100, 1)
+
+
 def scrape_nfl(Y, d):
-    base = f"{PFR}/years/{Y}"
-    s = soup_of(F.get(f"{base}/passing.htm") or "")
-    pa = player_rows(find_table(s, ["passing"], ["Player", "Cmp", "Att", "Yds"]))
-    passing = [{"Team": r["_team"], "Player": r["_name"], "Age": r.g("Age"), "Pos": r.g("Pos"), "G": r.g("G"),
-                "GS": r.g("GS"), "Cmp": r.g("Cmp"), "Att": r.g("Att"), "Yds": r.all["Yds"][0], "TD": r.g("TD"),
-                "Int": r.g("Int"), "Lng": r.g("Lng"), "Rate": r.g("Rate"), "Sk": r.g("Sk")} for r in pa]
+    """NFL from nflverse's open data releases (Pro-Football-Reference refuses automated requests)."""
+    tm = lambda c: NV_CODES.get(c, c)
+    i = lambda v: int(fnum(v))
+    players = nv_csv(f"stats_player/stats_player_reg_{Y}.csv")
+    passing, rr, de, kick = [], [], [], []
+    for r in players:
+        base = {"Team": tm(r["recent_team"]), "Player": r["player_display_name"] or r["player_name"], "Age": "",
+                "Pos": r["position"], "G": i(r["games"]), "GS": ""}
+        att = i(r["attempts"])
+        if att > 0:
+            c, y, t, n = i(r["completions"]), i(r["passing_yards"]), i(r["passing_tds"]), i(r["passing_interceptions"])
+            passing.append(dict(base, Cmp=c, Att=att, Yds=y, TD=t, Int=n, Lng="", Rate=passer_rating(c, att, y, t, n),
+                                Sk=i(r["sacks_suffered"])))
+        if i(r["carries"]) or i(r["targets"]) or i(r["receptions"]):
+            rr.append(dict(base, RushAtt=i(r["carries"]), RushYds=i(r["rushing_yards"]), RushTD=i(r["rushing_tds"]),
+                           RushLng="", Tgt=i(r["targets"]), Rec=i(r["receptions"]), RecYds=i(r["receiving_yards"]),
+                           RecTD=i(r["receiving_tds"]), RecLng="",
+                           Fmb=i(r.get("fumbles_total") or 0) or i(r["rushing_fumbles"]) + i(r["receiving_fumbles"]) + i(r["sack_fumbles"])))
+        solo, ast = i(r["def_tackles_solo"]), i(r["def_tackle_assists"])
+        if solo or ast or fnum(r["def_sacks"]) or i(r["def_interceptions"]) or i(r["def_pass_defended"]):
+            de.append(dict(base, Int=i(r["def_interceptions"]), IntYds=i(r["def_interception_yards"]), IntTD=i(r["def_tds"]),
+                           PD=i(r["def_pass_defended"]), FF=i(r["def_fumbles_forced"]), FR=i(r["fumble_recovery_opp"]),
+                           Sk=fnum(r["def_sacks"]), Comb=solo + ast, Solo=solo, TFL=i(r["def_tackles_for_loss"]),
+                           QBHits=i(r["def_qb_hits"])))
+        if i(r["fg_att"]) or i(r["pat_att"]):
+            fga, fgm = i(r["fg_att"]), i(r["fg_made"])
+            kick.append({"Player": base["Player"], "Team": base["Team"], "Age": "", "G": base["G"], "FGM": fgm, "FGA": fga,
+                         "Lng": i(r["fg_long"]) or "", "FGPct": round(100 * fgm / fga, 1) if fga else "",
+                         "XPM": i(r["pat_made"]), "XPA": i(r["pat_att"])})
     write_csv(d, "nfl_pass.csv", ["Team", "Player", "Age", "Pos", "G", "GS", "Cmp", "Att", "Yds", "TD", "Int", "Lng",
                                   "Rate", "Sk"], passing)
-    rr = {}
-
-    def slot(r):
-        k = (r["_name"], r["_team"])
-        if k not in rr:
-            rr[k] = {"Team": r["_team"], "Player": r["_name"], "Age": r.g("Age"), "Pos": r.g("Pos"), "G": 0, "GS": 0,
-                     "Fmb": 0}
-        o = rr[k]
-        o["Pos"] = o["Pos"] or r.g("Pos")
-        o["G"] = max(fnum(o["G"]), fnum(r.g("G")))
-        o["GS"] = max(fnum(o["GS"]), fnum(r.g("GS")))
-        o["Fmb"] = max(fnum(o["Fmb"]), fnum(r.g("Fmb")))
-        return o
-    s = soup_of(F.get(f"{base}/rushing.htm") or "")
-    for r in player_rows(find_table(s, ["rushing"], ["Player", "Att", "Yds", "TD"])):
-        o = slot(r)
-        o.update(RushAtt=r.g("Att"), RushYds=r.all["Yds"][0], RushTD=r.all["TD"][0], RushLng=r.g("Lng"))
-    s = soup_of(F.get(f"{base}/receiving.htm") or "")
-    for r in player_rows(find_table(s, ["receiving"], ["Player", "Rec", "Yds", "TD"])):
-        o = slot(r)
-        o.update(Tgt=r.g("Tgt"), Rec=r.g("Rec"), RecYds=r.all["Yds"][0], RecTD=r.all["TD"][0], RecLng=r.g("Lng"))
-    for o in rr.values():
-        for k in ("G", "GS", "Fmb"):
-            o[k] = int(o[k])
     write_csv(d, "nfl_rr.csv", ["Team", "Player", "Age", "Pos", "G", "GS", "RushAtt", "RushYds", "RushTD", "RushLng",
-                                "Tgt", "Rec", "RecYds", "RecTD", "RecLng", "Fmb"], rr.values())
-    s = soup_of(F.get(f"{base}/defense.htm") or "")
-    de = []
-    for r in player_rows(find_table(s, ["defense"], ["Player", "Comb", "Sk"])):
-        yds, tds = r.all.get("Yds", [""]), r.all.get("TD", [""])
-        de.append({"Team": r["_team"], "Player": r["_name"], "Age": r.g("Age"), "Pos": r.g("Pos"), "G": r.g("G"),
-                   "GS": r.g("GS"), "Int": r.g("Int"), "IntYds": yds[0], "IntTD": tds[0], "PD": r.g("PD"),
-                   "FF": r.g("FF"), "FR": r.g("FR"), "Sk": r.g("Sk"), "Comb": r.g("Comb"), "Solo": r.g("Solo"),
-                   "TFL": r.g("TFL"), "QBHits": r.g("QBHits")})
+                                "Tgt", "Rec", "RecYds", "RecTD", "RecLng", "Fmb"], rr)
     write_csv(d, "nfl_def.csv", ["Team", "Player", "Age", "Pos", "G", "GS", "Int", "IntYds", "IntTD", "PD", "FF", "FR",
                                  "Sk", "Comb", "Solo", "TFL", "QBHits"], de)
-    s = soup_of(F.get(f"{base}/kicking.htm") or "")
-    kick = []
-    for r in player_rows(find_table(s, ["kicking"], ["Player", "XPM", "FGM"])):
-        kick.append({"Player": r["_name"], "Team": r["_team"], "Age": r.g("Age"), "G": r.g("G"),
-                     "FGM": r.all["FGM"][-1], "FGA": r.all["FGA"][-1], "Lng": r.g("Lng"), "FGPct": r.g("FG%"),
-                     "XPM": r.g("XPM"), "XPA": r.g("XPA")})
     write_csv(d, "nfl_kick.csv", ["Player", "Team", "Age", "G", "FGM", "FGA", "Lng", "FGPct", "XPM", "XPA"], kick)
 
-    s = soup_of(F.get(f"{base}/") or "")
-    T = {}
-    for conf in ("AFC", "NFC"):
-        for r in find_table(s, [conf], ["W", "L", "PF", "PA"], nth=0 if conf == "AFC" else 1):
-            c = nfl_team(r)
-            if c:
-                T[c] = {"Team": c, "W": r.g("W"), "L": r.g("L"), "Ties": r.g("T", default="0"), "PF": r.g("PF"),
-                        "PA": r.g("PA")}
-    for tid, nth, yk, tk in (("team_stats", 0, "OffYds", "TO"), ("opp_stats", 1, "DefYds", "Takeaways")):
-        for r in find_table(s, [tid], ["PF", "Yds", "Ply", "TO"], nth=nth):
-            c = nfl_team(r)
-            if c in T:
-                T[c][yk] = r.all["Yds"][0]
-                T[c][tk] = r.g("TO")
+    T, weeks = {}, {}
+    for g in nv_csv("schedules/games.csv"):
+        if g["season"] != str(Y) or g["game_type"] != "REG" or g["home_score"] == "" or g["away_score"] == "":
+            continue
+        hs, as_ = i(g["home_score"]), i(g["away_score"])
+        for team, pf, pa in ((g["home_team"], hs, as_), (g["away_team"], as_, hs)):
+            t = T.setdefault(tm(team), {"Team": tm(team), "W": 0, "L": 0, "Ties": 0, "PF": 0, "PA": 0,
+                                        "OffYds": 0, "DefYds": 0, "TO": 0, "Takeaways": 0})
+            t["PF"] += pf
+            t["PA"] += pa
+            t["W" if pf > pa else "L" if pf < pa else "Ties"] += 1
+        w = weeks.setdefault(i(g["week"]), {"w": i(g["week"]), "p": 0, "games": 0})
+        w["p"] += hs + as_
+        w["games"] += 1
+    off = lambda r: i(r["passing_yards"]) + i(r["sack_yards_lost"]) + i(r["rushing_yards"])
+    for r in nv_csv(f"stats_team/stats_team_week_{Y}.csv"):
+        if r.get("season_type", "REG") != "REG":
+            continue
+        a, b = tm(r["team"]), tm(r["opponent_team"])
+        if a in T:
+            T[a]["OffYds"] += off(r)
+            T[a]["TO"] += i(r["passing_interceptions"]) + i(r["sack_fumbles_lost"]) + i(r["rushing_fumbles_lost"]) + \
+                i(r["receiving_fumbles_lost"])
+            T[a]["Takeaways"] += i(r["def_interceptions"]) + i(r["fumble_recovery_opp"])
+        if b in T:
+            T[b]["DefYds"] += off(r)
     write_csv(d, "nfl_teams.csv", ["Team", "W", "L", "Ties", "PF", "PA", "OffYds", "DefYds", "TO", "Takeaways"],
               T.values())
-
-    weeks = {}
-    try:
-        s = soup_of(F.get(f"{base}/games.htm") or "")
-        for r in find_table(s, ["games"], ["Week", "PtsW", "PtsL"]):
-            w, a, b = r.g("Week"), r.g("PtsW"), r.g("PtsL")
-            if w.isdigit() and a != "" and b != "":
-                x = weeks.setdefault(int(w), {"w": int(w), "p": 0, "games": 0})
-                x["p"] += int(fnum(a) + fnum(b))
-                x["games"] += 1
-    except Exception as e:
-        print("  ! NFL weekly scores skipped:", e)
-    gp = sum(fnum(t["W"]) + fnum(t["L"]) + fnum(t["Ties"]) for t in T.values())
+    gp = sum(t["W"] + t["L"] + t["Ties"] for t in T.values())
     return {"players": len(passing) + len(rr) + len(de) + len(kick), "teams": len(T), "gp": gp,
-            "pf": sum(fnum(t["PF"]) for t in T.values()), "full": 17, "url": f"{base}/",
+            "pf": sum(t["PF"] for t in T.values()), "full": 17, "url": "https://github.com/nflverse/nflverse-data",
             "weeks": [weeks[k] for k in sorted(weeks)]}
 
 
@@ -513,7 +520,7 @@ LEAGUES = {
     "nba": ("winter", scrape_nba, 30, 150, -1, "Basketball-Reference"),
     "nhl": ("winter", scrape_nhl, 32, 300, -1, "Hockey-Reference"),
     "mlb": ("mlb", scrape_mlb, 30, 500, 0, "Baseball-Reference"),
-    "nfl": ("nfl", scrape_nfl, 32, 300, 0, "Pro-Football-Reference"),
+    "nfl": ("nfl", scrape_nfl, 32, 300, 0, "nflverse open NFL data"),
     "mls": ("mls", scrape_mls, 29, 300, 0, "Stats Crew"),
 }
 
@@ -542,6 +549,10 @@ def run_league(lg, today):
             for g in data["groups"]:
                 if not g["rows"]:
                     raise ValueError(f"stat group {g['id']} is empty")
+                g["cols"] = [c for c in g["cols"] if any(r.get(c["k"]) not in (None, "", 0) for r in g["rows"])]
+                for c in g["cols"]:
+                    if lg == "nfl" and c["k"] == "IntTD":
+                        c["label"] = "DEF TD"
             info.update(year=yr, start=yr + off, partial=partial, label=season_label(lg, yr), data=data)
             return info, errors
         except Exception as e:
