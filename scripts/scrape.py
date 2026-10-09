@@ -325,6 +325,28 @@ def scrape_mlb(Y, d):
             continue
         build.MLB_TEAMS.setdefault(c, clean_name(r.g("Tm", "Team")))
         T[c] = {"Team": c, "W": r.g("W"), "L": r.g("L"), "R": r.g("R"), "RA": r.g("RA")}
+    # The standings table reports R and RA per game. Prefer season totals from the league page's team tables.
+    totals = {}
+    try:
+        s = soup_of(F.get(f"{BBR}/leagues/majors/{Y}.shtml") or "")
+        for r in find_table(s, ["teams_standard_batting"], ["R", "HR", "PA", "OPS"]):
+            c = team_code(r, "Tm", "Team")
+            if c:
+                totals.setdefault(c, {})["R"] = r.g("R")
+        for r in find_table(s, ["teams_standard_pitching"], ["R", "ERA", "IP", "SO"]):
+            c = team_code(r, "Tm", "Team")
+            if c:
+                totals.setdefault(c, {})["RA"] = r.g("R")
+    except Exception as e:
+        print("  ! MLB team run totals unavailable, deriving from per-game rates:", e)
+    for c, t in T.items():
+        g = fnum(t["W"]) + fnum(t["L"])
+        for k in ("R", "RA"):
+            tot = totals.get(c, {}).get(k)
+            if tot and fnum(tot) > 50:
+                t[k] = str(int(fnum(tot)))
+            elif fnum(t[k]) < 20:  # per-game rate
+                t[k] = str(round(fnum(t[k]) * g))
     write_csv(d, "mlb_teams.csv", ["Team", "W", "L", "R", "RA"], T.values())
     return {"players": len(bat) + len(pit), "teams": len(T),
             "gp": sum(fnum(t["W"]) + fnum(t["L"]) for t in T.values()),
@@ -541,6 +563,10 @@ def run_league(lg, today):
             info = fn(yr, tmp)
             if info["teams"] < n_teams or info["players"] < n_players or info["gp"] <= 0:
                 raise ValueError(f"only {info['teams']} teams / {info['players']} player rows / {info['gp']:.0f} team-games")
+            lo, hi = {"nba": (80, 140), "nhl": (1.5, 5), "mlb": (2, 8), "nfl": (10, 40), "mls": (0.7, 2.6)}[lg]
+            ppg = info["pf"] / info["gp"]
+            if not lo <= ppg <= hi:
+                raise ValueError(f"implausible scoring rate {ppg:.3f} per team-game (expected {lo}-{hi})")
             build.HERE = tmp
             data = build.finalize(build.BUILDERS[lg]())
             partial = info["gp"] / info["teams"] < info["full"] - 0.5
